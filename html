@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PenguinGPT</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #output {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>PenguinGPT</h1>
+
+    <label for="message">Enter your message:</label>
+    <input type="text" id="message" placeholder="Type your message here...">
+
+    <button onclick="sendMessage()">Send</button>
+
+    <div id="output"></div>
+
+    <script>
+        class PenguinGPT {
+            constructor() {
+                this.chatHistories = {};
+                this.model = "gpt-4o";
+                this.apiUrl = 'https://reverse.mubi.tech/v1';
+                this.reqModels = [{'text': 'Currently requesting models, please wait!', 'value': 'gpt-4o'}];
+                this.reqModelsErrored = false;
+                this.nextJson = null;
+                this.fetchAndGetReqModels();
+            }
+
+            async fetchAndGetReqModels() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/models`);
+                    if (!response.ok) throw new Error("Network response was not ok");
+                    const data = await response.json();
+                    const models = [];
+                    for (let model of data['data']) {
+                        if (model['type'] !== "chat.completions") continue;
+                        models.push({
+                            'text': this.formatModelId(model['id']),
+                            'value': model['id']
+                        });
+                    }
+                    this.reqModels = models;
+                } catch (error) {
+                    this.reqModelsErrored = true;
+                    console.log(`Network response was not ok: ${error}`);
+                    this.reqModels = [{"text": "The API seems to be down. Try again later.", "value": "not-a-model"}];
+                }
+            }
+
+            formatModelId(modelId) {
+                const parts = modelId.split("-");
+                const formattedParts = parts.map(part => part.charAt(0).toUpperCase() + part.slice(1));
+                return formattedParts.join(" ");
+            }
+
+            async sendSinglePrompt(prompt, chatId = "default") {
+                if (!(chatId in this.chatHistories)) {
+                    this.chatHistories[chatId] = [];
+                }
+
+                let content = prompt;
+
+                if (this.nextJson) {
+                    const nextJsonArray = Array.isArray(this.nextJson) ? this.nextJson : [this.nextJson];
+                    content = [{"type": "text", "text": prompt}].concat(nextJsonArray);
+                    this.nextJson = null;
+                }
+
+                this.chatHistories[chatId].push({"role": "user", "content": content});
+
+                try {
+                    const response = await fetch(`${this.apiUrl}/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Origin': 'https://gptcall.net/',
+                            'Referer': 'https://gptcall.net/'
+                        },
+                        body: JSON.stringify({
+                            model: this.model,
+                            messages: this.chatHistories[chatId]
+                        })
+                    });
+
+                    if (!response.ok) throw new Error("Network response was not ok");
+
+                    const data = await response.json();
+                    const botResponse = data['choices'][0]['message']['content'];
+
+                    this.chatHistories[chatId].push({"role": "assistant", "content": botResponse});
+
+                    return botResponse;
+                } catch (error) {
+                    console.log(`Error sending prompt to GPT: ${error}`);
+                    return `Error: ${error}`;
+                }
+            }
+        }
+
+        const penguin = new PenguinGPT();
+
+        async function sendMessage() {
+            const userMessage = document.getElementById('message').value;
+            }
+
+            const response = await penguin.sendSinglePrompt(userMessage);
+            document.getElementById('output').innerText = response;
+        }
+    </script>
+
+</body>
+</html>
