@@ -150,8 +150,6 @@
 
         async function sendMessage() {
             const userMessage = document.getElementById('message').value;
-            }
-
             const response = await penguin.sendSinglePrompt(userMessage);
             document.getElementById('output').innerText = response;
         }
